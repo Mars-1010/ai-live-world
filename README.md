@@ -33,3 +33,72 @@ The first milestone is a 10-minute local demo where:
 ## Milestone 1
 
 Create a playable local demo with one room, one cat, four visible stats, autonomous actions, and simulated audience events.
+
+## Run the issue #1 backend
+
+Requires Python 3.10 or newer. From the repository root:
+
+```sh
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+uvicorn backend.main:app --reload
+```
+
+Open http://127.0.0.1:8000/docs for the interactive API. Run tests with
+`python -m pytest -q`. For runtime-only installation, use `requirements.txt`.
+
+Use one server worker: state and the full ordered event log live in memory for
+that process. Restarting or reloading resets the session. This milestone has no
+database, background ticks, simulator UI, LLM, or Douyin connection.
+
+### API
+
+| Route | Request | Response |
+| --- | --- | --- |
+| `GET /health` | — | `{"status":"ok"}` |
+| `GET /state` | — | Canonical state from `ARCHITECTURE.md` |
+| `POST /event/comment` | `{"text":"sleep"}` | `{"event":{...},"state":{...}}` |
+| `POST /event/gift` | `{"tier":"small"}` | `{"event":{...},"state":{...}}` |
+| `GET /events?after=0` | Nonnegative, exclusive event ID cursor | Ordered array of event records |
+
+Each accepted event receives an increasing integer ID starting at 1, also stored
+in `state.meta.last_event_id`. Records contain `id`, `type`, `payload`, and
+`effect`. The POST response includes the state immediately after that event.
+Invalid requests return HTTP 422 and leave state and history unchanged.
+
+### Deterministic test mappings
+
+These fixed mappings make the specification's example tiers executable for local
+testing; they are not a production gift catalog or economy.
+
+| Input | Effect |
+| --- | --- |
+| Comment: `go left`, `go right`, or `walk` | Suggest `walk` action |
+| Comment: `eat`, `sleep`, `work`, `explore`, or `idle` | Suggest the named action |
+| Other comment | Log `ignored_comment`; no cat/world change |
+| Small gift | `food_drop`: hunger −20, mood +5, action `eat` |
+| Medium gift | `rain`: weather becomes `rain` |
+| Large gift | `meteor_strike`: HP −30, mood −20, power off; add the hazard once |
+
+Comments ignore case and surrounding whitespace, and must contain 1–500
+characters after trimming. For this foundation, recognized suggestions set the
+current action; they do not grant resources or simulate completing the action.
+There is no autonomous scheduler yet. Gift tiers accept exactly `small`, `medium`,
+or `large`; clients cannot supply arbitrary state deltas or extra fields.
+
+HP, hunger, and mood are integers clamped to 0–100 after gift effects. Higher
+hunger means hungrier. Money is nonnegative integer currency, initially 20, with
+no percentage cap; these test mappings do not change it. Repeated gifts still
+create events even if their effect is already active or a stat is at its bound.
+`meta.tick` remains 0 until the later autonomous behavior milestone.
+
+```sh
+curl http://127.0.0.1:8000/health
+curl -X POST http://127.0.0.1:8000/event/comment \
+  -H 'Content-Type: application/json' -d '{"text":"sleep"}'
+curl -X POST http://127.0.0.1:8000/event/gift \
+  -H 'Content-Type: application/json' -d '{"tier":"small"}'
+curl 'http://127.0.0.1:8000/events?after=0'
+curl http://127.0.0.1:8000/state
+```
