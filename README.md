@@ -136,3 +136,102 @@ node --test control-panel/tests/*.test.mjs
 
 For a quick manual check, click each gift tier, send a preset and a custom
 comment, then keep two tabs open and confirm both show the same event order.
+
+## Run the issue #5 Godot world
+
+Install the standard [Godot 4.6 or newer editor](https://godotengine.org/download/)
+(no .NET version, paid assets, or plugins needed). The client project is
+`godot/project.godot`. The original cat SVG and procedural room art are committed
+with the project.
+
+**macOS:** start FastAPI from the repository root using the setup above:
+
+```sh
+source .venv/bin/activate
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```
+
+**Windows (PowerShell, repository root):**
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```
+
+On either platform, open Godot's Project Manager, choose **Import**, select
+`godot/project.godot`, and press **F5**. Open
+http://127.0.0.1:8000/control-panel/ alongside the Godot window to send events.
+The game defaults to `http://127.0.0.1:8000`. To use another backend, edit the URL
+at the bottom of the game and press **Connect / resync** or Enter.
+
+For command-line launch on macOS:
+
+```sh
+/Applications/Godot.app/Contents/MacOS/Godot --path godot -- --backend-url=http://127.0.0.1:8000
+```
+
+The same `--path godot -- --backend-url=...` arguments work with the Windows
+Godot executable. Alternatively set `AI_LIVE_WORLD_API_URL` before launch;
+the command-line option takes precedence over that environment variable.
+
+The Godot client only reads `/state` and `/events?after=<id>`. It polls every
+0.5 seconds after the preceding state/event cycle, with four-second request
+timeouts and automatic retries. HP, hunger, mood, money, weather, power, action,
+and latest event ID come directly from backend snapshots. Cat movement, falling
+food, rain, and impact animation are local presentation, never state simulation.
+Live gift animations play in event order; bursts queue behind the current
+animation (food 1.6 s, rain 2.1 s, meteor 2.8 s). The most recent four events
+appear in the HUD.
+
+Initial connection/resync loads current state and event history without replaying
+old gift animations. Rain, the meteor hazard, and power-off remain visible from
+the current state. A lower backend event ID resets the client automatically.
+As with the browser simulator, a restart that catches up to the old ID between
+polls cannot be identified without a server session ID; press **Connect / resync**
+to reload that history. While disconnected, the last snapshot remains on screen
+with a reconnecting indicator. It does not evolve locally.
+
+Godot tests (use your Godot executable in place of `godot` if it is not on PATH;
+on Windows prefer the `_console.exe` executable):
+
+```sh
+godot --headless --path godot --editor --import --quit
+godot --headless --path godot --script res://tests/test_protocol.gd
+```
+
+Optional visual fixtures: with a graphics display, run
+`godot --path godot --script res://tests/render_smoke.gd -- --output-dir=<absolute-directory>`
+to export 12 deterministic PNGs of all actions and gift stages, plus six
+384 × 216 phone previews.
+
+For the live integration test, start a **fresh disposable backend** on port 8765
+with `python -m uvicorn backend.main:app --port 8765`, then run:
+
+```sh
+godot --headless --path godot --script res://tests/test_live.gd
+```
+
+The live test sends six comments and three fake gifts; it requires event ID 0 at
+startup and defaults to port 8765 (override with `AI_LIVE_WORLD_API_URL`). See
+[the deterministic visual smoke checklist](godot/SMOKE_TEST.md) for checking all
+actions, effects, duplicate handling, and restart recovery in the game window.
+The Godot HTTP and drawing implementation uses the official
+[HTTPRequest](https://docs.godotengine.org/en/stable/classes/class_httprequest.html)
+and [CanvasItem](https://docs.godotengine.org/en/stable/classes/class_canvasitem.html)
+APIs. There is no LLM, OBS automation, or real Douyin integration.
+
+## Issue #7: meme-style presentation
+
+The same Godot client now has large Chinese event banners, six original cat
+expressions, stronger contrast, storm ambience, and a meteor warning/impact/outage
+sequence. Food, rain, and meteor use distinct visual intensity tiers; no audio
+is required. The included OFL-licensed Chinese font works without system fonts.
+
+See [ART_DIRECTION.md](godot/ART_DIRECTION.md) for the visual rules, editable copy
+mapping, six required review scenes, and phone previews. The existing run and
+backend URL controls are unchanged. Additional tests:
+
+```sh
+godot --headless --path godot --script res://tests/test_presentation.gd
+```
