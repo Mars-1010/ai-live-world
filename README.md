@@ -49,8 +49,8 @@ Open http://127.0.0.1:8000/docs for the interactive API. Run tests with
 `python -m pytest -q`. For runtime-only installation, use `requirements.txt`.
 
 Use one server worker: state and the full ordered event log live in memory for
-that process. Restarting or reloading resets the session. This milestone has no
-database, background ticks, simulator UI, LLM, or Douyin connection.
+that process. Restarting or reloading resets the session. There is no database,
+background tick loop, LLM, or Douyin connection.
 
 ### API
 
@@ -102,3 +102,37 @@ curl -X POST http://127.0.0.1:8000/event/gift \
 curl 'http://127.0.0.1:8000/events?after=0'
 curl http://127.0.0.1:8000/state
 ```
+
+## Run the issue #3 event simulator
+
+Start the backend with the command above, then open
+http://127.0.0.1:8000/control-panel/ in a browser. No frontend installation or
+build step is needed. FastAPI serves the plain HTML/CSS/JS in `control-panel/`
+from the same origin as the API, so no CORS permissions or second server are needed.
+Do not open `index.html` directly as a file.
+
+The panel shows all four stats, weather, power, current action, and last event ID.
+Click a comment preset, send a custom comment, or choose a gift tier. Gift cards
+show the exact test effects; accepted gifts immediately update the state and show
+a brief banner. These are simulated gifts with no real payments or platform calls.
+
+The event feed polls `GET /events?after=<id>` once per second after the previous
+poll finishes, showing events in ascending ID order without duplicates. It also
+includes events sent from other tabs or API clients. Connection failures show a
+retry status; requests time out after five seconds. Failed or uncertain sends
+are never automatically retried. Refreshing the page reloads session history.
+When polling observes an event ID lower than before (a backend restart), the panel
+clears the previous feed and reloads it. If a restarted backend has already caught
+up to the old ID before polling, refresh the page to reload that new history;
+the current API does not expose a session identifier.
+
+Validation:
+
+```sh
+python -m pytest -q
+# Optional: Node.js 20+ runs the frontend logic tests, with no npm packages.
+node --test control-panel/tests/*.test.mjs
+```
+
+For a quick manual check, click each gift tier, send a preset and a custom
+comment, then keep two tabs open and confirm both show the same event order.
