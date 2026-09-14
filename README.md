@@ -181,7 +181,8 @@ timeouts and automatic retries. HP, hunger, mood, money, weather, power, action,
 and latest event ID come directly from backend snapshots. Cat movement, falling
 food, rain, and impact animation are local presentation, never state simulation.
 Live gift animations play in event order; bursts queue behind the current
-2.4-second animation. The most recent four events appear in the HUD.
+animation (food 1.6 s, rain 2.1 s, meteor 2.8 s). The most recent four events
+appear in the HUD.
 
 Initial connection/resync loads current state and event history without replaying
 old gift animations. Rain, the meteor hazard, and power-off remain visible from
@@ -201,7 +202,8 @@ godot --headless --path godot --script res://tests/test_protocol.gd
 
 Optional visual fixtures: with a graphics display, run
 `godot --path godot --script res://tests/render_smoke.gd -- --output-dir=<absolute-directory>`
-to export nine deterministic PNGs of all actions and gift effects.
+to export 12 deterministic PNGs of all actions and gift stages, plus six
+384 × 216 phone previews.
 
 For the live integration test, start a **fresh disposable backend** on port 8765
 with `python -m uvicorn backend.main:app --port 8765`, then run:
@@ -218,3 +220,18 @@ The Godot HTTP and drawing implementation uses the official
 [HTTPRequest](https://docs.godotengine.org/en/stable/classes/class_httprequest.html)
 and [CanvasItem](https://docs.godotengine.org/en/stable/classes/class_canvasitem.html)
 APIs. There is no LLM, OBS automation, or real Douyin integration.
+
+## Issue #7: meme-style presentation
+
+The same Godot client now has large Chinese event banners, six original cat
+expressions, stronger contrast, storm ambience, and a meteor warning/impact/outage
+sequence. Food, rain, and meteor use distinct visual intensity tiers; no audio
+is required. The included OFL-licensed Chinese font works without system fonts.
+
+See [ART_DIRECTION.md](godot/ART_DIRECTION.md) for the visual rules, editable copy
+mapping, six required review scenes, and phone previews. The existing run and
+backend URL controls are unchanged. Additional tests:
+
+```sh
+godot --headless --path godot --script res://tests/test_presentation.gd
+```

@@ -4,6 +4,8 @@ extends SceneTree
 
 const WorldView = preload("res://scripts/world_view.gd")
 const Fixtures = preload("res://tests/test_protocol.gd")
+const Presentation = preload("res://scripts/presentation.gd")
+const PHONE_PREVIEWS = ["idle", "food_drop", "rain", "meteor_impact", "power_off_aftermath", "work"]
 var output_dir: String = ""
 
 func _initialize() -> void:
@@ -25,6 +27,8 @@ func render_frames() -> void:
 	view.set_process(false)
 	view.update_connection(true, "Connected / visual test fixture")
 	for action in ["idle", "walk", "eat", "sleep", "work", "explore"]:
+		view.reset_session()
+		view.update_connection(true, "Connected / visual test fixture")
 		var state := Fixtures.fixture()
 		state.cat.action = action
 		view.update_state(state)
@@ -33,6 +37,8 @@ func render_frames() -> void:
 		view.cat_position = WorldView.action_target(action, 0.8)
 		await save_frame(view, action)
 	for effect in ["food_drop", "rain", "meteor_strike"]:
+		view.reset_session()
+		view.update_connection(true, "Connected / visual test fixture")
 		var state := Fixtures.fixture()
 		state.meta.last_event_id = 1
 		if effect == "food_drop":
@@ -47,17 +53,37 @@ func render_frames() -> void:
 			state.world.power = false
 			state.world.hazards = ["meteor_strike"]
 		view.update_state(state)
-		view.cat_position = WorldView.action_target(state.cat.action, 0.8)
+		view.time = 0.8
+		view.action_time = 0.8
+		view.cat_position = Vector2(457, 501)
 		view.active_effect = {"id": 1, "effect": effect}
-		view.effect_time = 2.1
-		await save_frame(view, effect)
-	print("Rendered nine fixture frames to " + output_dir)
+		view.effect_time = Presentation.duration(effect) - 0.85
+		if effect == "meteor_strike":
+			await save_frame(view, "meteor_impact")
+			view.effect_time = Presentation.duration(effect) - 0.3
+			await save_frame(view, "meteor_warning")
+			view.effect_time = Presentation.duration(effect) - 0.6
+			await save_frame(view, "meteor_flash")
+			view.active_effect = {}
+			view.effect_time = 0.0
+			view.cat_position = WorldView.action_target("idle", 0.8)
+			await save_frame(view, "power_off_aftermath")
+		else:
+			await save_frame(view, effect)
+	print("Rendered 12 fixture frames and six phone previews to " + output_dir)
 	quit()
 
 func save_frame(view: Node2D, name: String) -> void:
 	view.queue_redraw()
 	await RenderingServer.frame_post_draw
-	var error := root.get_texture().get_image().save_png(output_dir.path_join(name + ".png"))
+	var frame := root.get_texture().get_image()
+	var error := frame.save_png(output_dir.path_join(name + ".png"))
 	if error != OK:
 		push_error("Could not save frame: " + name)
 		quit(1)
+		return
+	if name in PHONE_PREVIEWS:
+		frame.resize(384, 216, Image.INTERPOLATE_LANCZOS)
+		if frame.save_png(output_dir.path_join(name + "_phone.png")) != OK:
+			push_error("Could not save phone preview: " + name)
+			quit(1)
