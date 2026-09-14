@@ -1,8 +1,10 @@
 """Run from the repository root: uvicorn backend.main:app --reload."""
 
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import FastAPI, Query
+from fastapi.staticfiles import StaticFiles
 
 from .models import CommentEvent, EventRecord, EventResult, GiftEvent, WorldState
 from .world import WorldStore
@@ -31,6 +33,12 @@ def create_app() -> FastAPI:
     @app.get("/events", response_model=list[EventRecord])
     def events(after: Annotated[int, Query(ge=0)] = 0) -> list[EventRecord]:
         return store.events_after(after)
+
+    app.mount(
+        "/control-panel",
+        StaticFiles(directory=Path(__file__).resolve().parent.parent / "control-panel", html=True),
+        name="control-panel",
+    )
 
     return app
 
